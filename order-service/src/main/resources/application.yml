@@ -44,4 +44,4 @@ springdoc:
 
 external:
   product-service:
-    url: http://localhost:8081/api/v1
+    url: http://localhost:9081/api/v1

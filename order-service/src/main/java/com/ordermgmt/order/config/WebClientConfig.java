@@ -1,40 +1,32 @@
 package com.ordermgmt.order.config;
 
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestTemplate;
 
 /**
- * WebClient Configuration for the Order Service.
- *
- * <p>This configuration class provides a WebClient bean used for making reactive HTTP requests
- * to external services, particularly the Product Service. WebClient is the modern, non-blocking
- * alternative to RestTemplate.
- *
- * <p>The WebClient is used to:
- * <ul>
- *   <li>Validate product existence when creating orders</li>
- *   <li>Retrieve product details for price calculations</li>
- *   <li>Handle inter-microservice communication asynchronously</li>
- * </ul>
- *
+ * Configuration for WebClient and RestTemplate beans.
+ * Provides HTTP client for inter-service communication.
+ * 
  * @author Order Management Team
- * @version 1.0.0
- * @see org.springframework.web.reactive.function.client.WebClient
+ * @version 1.0
  */
 @Configuration
 public class WebClientConfig {
 
     /**
-     * Creates and configures a WebClient bean for reactive HTTP calls.
-     *
-     * <p>This WebClient can be injected into services that need to communicate with
-     * external microservices such as the Product Service.
-     *
-     * @return A configured WebClient instance
+     * Create RestTemplate bean for synchronous HTTP calls.
+     * Used for calling Product Service.
+     * 
+     * @param builder RestTemplateBuilder
+     * @return Configured RestTemplate
      */
     @Bean
-    public WebClient webClient() {
-        return WebClient.builder().build();
+    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        return builder
+                .setConnectTimeout(java.time.Duration.ofSeconds(5))
+                .setReadTimeout(java.time.Duration.ofSeconds(10))
+                .build();
     }
 }
