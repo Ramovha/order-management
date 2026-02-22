@@ -43,14 +43,16 @@ order-management/
 - [x] SLF4J Logging configuration
 - [x] JUnit 5, Mockito, Spring Security Test
 
-### Phase 2: Features (⏳ In Progress)
-- [ ] Product Service CRUD endpoints
-- [ ] Order Service CRUD endpoints
-- [ ] Inter-service communication (Order -> Product)
-- [ ] Business logic and validation
+### Phase 2: Features (✅ Completed)
+- [x] Product Service CRUD endpoints
+- [x] Order Service CRUD endpoints
+- [x] Inter-service communication (Order -> Product)
+- [x] Business logic and validation
 
-### Phase 3: Testing
-- [ ] Unit tests for services
+### Phase 3: Testing (✅ Completed)
+- [x] Unit tests for services (JUnit 5 with Mockito)
+- [x] Product Service tests (10 tests)
+- [x] Order Service tests (11 tests)
 - [ ] Integration tests for APIs
 
 ### Phase 4: Documentation
@@ -111,15 +113,166 @@ All endpoints (except Swagger UI) require Basic Authentication.
 - **Testing**: JUnit 5, Mockito
 - **Build**: Maven
 
-## Next Steps
+## Unit Testing
 
-1. Implement Product Service entities and endpoints
-2. Implement Order Service entities and endpoints
-3. Add inter-service communication
-4. Create comprehensive unit and integration tests
-5. Document design decisions
+### Test Setup & Architecture
 
-## Testing Guide
+The project includes comprehensive unit tests using **JUnit 5** and **Mockito** for both services. Tests are organized as follows:
+
+#### Product Service Tests
+- **ProductServiceTest** (10 tests)
+  - Tests CRUD operations (create, read, update, delete)
+  - Tests SKU uniqueness validation
+  - Tests error handling and edge cases
+  - Uses Mockito to mock ProductRepository
+  - Location: `product-service/src/test/java/com/ordermgmt/product/service/ProductServiceTest.java`
+
+#### Order Service Tests
+- **OrderServiceTest** (11 tests)
+  - Tests CRUD operations for orders
+  - Tests inter-service communication with Product Service via RestTemplate
+  - Tests product validation logic
+  - Tests order total price calculation
+  - Tests error handling (product not found, service unavailable)
+  - Uses Mockito to mock OrderRepository and RestTemplate
+  - Location: `order-service/src/test/java/com/ordermgmt/order/service/OrderServiceTest.java`
+
+### Mocking Strategy
+
+**Product Service Tests:**
+- Mocks `ProductRepository` using `@Mock`
+- Injects mocks into `ProductService` using `@InjectMocks`
+- Verifies method calls and arguments using Mockito's `verify()`
+
+**Order Service Tests:**
+- Mocks `OrderRepository` for database operations
+- Mocks `RestTemplate` for inter-service HTTP calls to Product Service
+- Tests product validation with both successful and failed scenarios
+- Verifies correct headers and authentication in RestTemplate calls
+
+### Running Tests
+
+#### Run all tests:
+```bash
+mvn test -DskipITs
+```
+
+#### Run tests for specific module:
+```bash
+# Product Service tests only
+mvn -pl product-service test
+
+# Order Service tests only
+mvn -pl order-service test
+```
+
+#### Run specific test class:
+```bash
+# Run ProductServiceTest
+mvn -pl product-service test -Dtest=ProductServiceTest
+
+# Run OrderServiceTest
+mvn -pl order-service test -Dtest=OrderServiceTest
+```
+
+#### Run specific test method:
+```bash
+# Run a single test
+mvn -pl product-service test -Dtest=ProductServiceTest#testGetAllProducts
+```
+
+#### Generate test coverage report:
+```bash
+mvn clean test jacoco:report
+# Coverage report will be in: target/site/jacoco/index.html
+```
+
+### Test Results
+
+Current test status: **21 tests passing** ✅
+
+```
+Product Service: 10/10 tests passing
+├── testGetAllProducts
+├── testGetProductById
+├── testGetProductByIdNotFound
+├── testCreateProductSuccess
+├── testCreateProductDuplicateSku
+├── testUpdateProductSuccess
+├── testUpdateProductNotFound
+├── testDeleteProductSuccess
+├── testDeleteProductNotFound
+└── testProductValidation
+
+Order Service: 11/11 tests passing
+├── testGetAllOrders
+├── testGetOrderById
+├── testGetOrderByIdNotFound
+├── testCreateOrderSuccess
+├── testCreateOrderWithNoItems
+├── testCreateOrderProductNotFound
+├── testUpdateOrderSuccess
+├── testUpdateOrderNotFound
+├── testDeleteOrderSuccess
+├── testDeleteOrderNotFound
+└── testOrderTotalPriceCalculation
+```
+
+### Test Examples
+
+#### Example: Product Service - Testing SKU Uniqueness
+```java
+@Test
+@DisplayName("Should throw exception when creating product with duplicate SKU")
+void testCreateProductDuplicateSku() {
+    // Arrange
+    Product newProduct = Product.builder()
+            .name("Duplicate Laptop")
+            .sku("TEST-LAPTOP-001")
+            .build();
+    
+    when(productRepository.findBySku("TEST-LAPTOP-001"))
+            .thenReturn(Optional.of(existingProduct));
+    
+    // Act & Assert
+    RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        productService.createProduct(newProduct);
+    });
+    
+    assertTrue(exception.getMessage().contains("already exists"));
+    verify(productRepository, never()).save(any(Product.class));
+}
+```
+
+#### Example: Order Service - Testing Inter-Service Communication
+```java
+@Test
+@DisplayName("Should create order successfully with valid product")
+void testCreateOrderSuccess() {
+    // Arrange - Mock successful product validation
+    ResponseEntity<ProductResponse> response = 
+            new ResponseEntity<>(productResponse, HttpStatus.OK);
+    
+    when(restTemplate.exchange(
+            contains("products/1"),
+            eq(HttpMethod.GET),
+            any(),
+            eq(ProductResponse.class)))
+            .thenReturn(response);
+    
+    when(orderRepository.save(any(Order.class)))
+            .thenReturn(savedOrder);
+    
+    // Act
+    Order actual = orderService.createOrder(order);
+    
+    // Assert
+    assertNotNull(actual);
+    assertEquals(1, actual.getItems().size());
+    verify(restTemplate, times(1)).exchange(anyString(), any(), any(), any());
+}
+```
+
 
 ### Health Check Tests
 
