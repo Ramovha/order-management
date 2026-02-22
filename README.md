@@ -53,11 +53,11 @@ order-management/
 - [x] Unit tests for services (JUnit 5 with Mockito)
 - [x] Product Service tests (10 tests)
 - [x] Order Service tests (11 tests)
-- [ ] Integration tests for APIs
+- [ ] Integration tests for APIs (In Progress - MockMvc routing issues)
 
-### Phase 4: Documentation
-- [ ] README with setup instructions
-- [ ] Design decisions documentation
+### Phase 4: Documentation (✅ Completed)
+- [x] README with setup instructions
+- [x] Design decisions documentation
 
 ## Quick Start
 
@@ -366,3 +366,141 @@ open http://localhost:8081/api/v1/swagger-ui.html
 open http://localhost:8082/api/v1/swagger-ui.html
 ```
 
+## Design Decisions
+
+### Architecture & Patterns
+
+#### 1. **Microservices Architecture**
+- **Decision**: Split into Product Service and Order Service
+- **Rationale**: Enables independent scaling, deployment, and development. Each service manages its own data and business logic
+- **Trade-off**: Introduces complexity of inter-service communication and distributed transactions
+
+#### 2. **Synchronous Inter-Service Communication**
+- **Decision**: Order Service uses `RestTemplate` to call Product Service
+- **Rationale**: Simple implementation, immediate response validation, no additional infrastructure
+- **Trade-off**: Tight coupling, blocking calls, potential cascading failures
+- **Alternative Considered**: Message-based (async) communication with RabbitMQ/Kafka for loose coupling
+
+#### 3. **Layered Architecture**
+- **Decision**: Controller → Service → Repository structure
+- **Rationale**: Clear separation of concerns, testability, maintainability
+- **Layers**:
+  - **Controller**: HTTP request handling, routing, response formatting
+  - **Service**: Business logic, validation, inter-service orchestration
+  - **Repository**: Data persistence (JPA/Hibernate)
+
+#### 4. **Package Structure by Domain**
+- **Decision**: Organized by business domain (product, order) not technical layer
+- **Structure**: Each service has `model`, `repository`, `service`, `controller`, `config` packages
+- **Rationale**: Easier to locate related code, simpler to extract into separate modules later
+
+### Data & Persistence
+
+#### 5. **H2 In-Memory Database**
+- **Decision**: H2 for development and testing
+- **Rationale**: Zero configuration, fast startup, automatic creation, ideal for prototyping
+- **Production Strategy**: Would replace with PostgreSQL/MySQL for persistence
+- **Configuration**: Separate H2 instances per service (H2Console enabled on different ports)
+
+#### 6. **JPA/Hibernate ORM**
+- **Decision**: Used Hibernate with JPA annotations
+- **Rationale**: Abstract database vendor-specific SQL, built-in Spring Data support, simplifies relationships
+- **Trade-off**: Less control over exact SQL execution, potential N+1 query problems
+
+#### 7. **Entity Design**
+- **Product Entity**: Contains `id`, `name`, `sku`, `description`, `price`, `quantity`
+- **Order Entity**: Contains `id`, `customerName`, `customerEmail`, `items`, `status`, `totalPrice`
+- **OrderItem Embedded**: Part of Order, not separate table (embedded value object)
+- **SKU as Business Identifier**: SKU is checked for uniqueness (business key)
+
+### Security & Authentication
+
+#### 8. **Spring Security with Basic Authentication**
+- **Decision**: HTTP Basic Auth for all endpoints except health and Swagger UI
+- **Rationale**: Simple, standardized, sufficient for internal microservices
+- **Credentials**: Username `admin` / Password `password` (development only)
+- **Trade-off**: Password sent with every request (use HTTPS in production), not suitable for public APIs
+- **Production Alternative**: OAuth2, JWT tokens, mTLS for service-to-service communication
+
+#### 9. **Public Health & Swagger Endpoints**
+- **Decision**: Health checks and Swagger UI accessible without authentication
+- **Rationale**: Health checks needed for monitoring/orchestration, Swagger for API exploration
+- **Implementation**: Custom security configuration permits these paths
+
+### Testing Strategy
+
+#### 10. **Unit Tests with Mockito**
+- **Decision**: Service-layer tests mocking repositories
+- **Rationale**: Fast, isolated testing of business logic, no database needed
+- **Coverage**: CRUD operations, validation, error scenarios, inter-service logic
+- **Framework**: JUnit 5 with Mockito for mocking
+
+#### 11. **No Integration Tests (Skipped)**
+- **Decision**: Focus on unit tests, skipped integration tests
+- **Reason**: Controller integration tests had routing/405 errors with MockMvc
+- **Alternative Approach**: Could use TestContainers for Docker-based integration tests
+- **Current Approach**: E2E testing via Swagger UI or curl commands when services run
+
+#### 12. **Mock RestTemplate for Inter-Service Calls**
+- **Decision**: Mock RestTemplate in Order Service tests
+- **Rationale**: Tests Order logic in isolation without requiring Product Service running
+- **Implementation**: Uses Mockito's `when/thenReturn` to stub HTTP responses
+
+### API Design
+
+#### 13. **RESTful API Conventions**
+- **Base Path**: `/api/v1/` prefix for versioning
+- **HTTP Methods**: 
+  - POST for creation (returns 201 Created)
+  - GET for retrieval (returns 200 OK)
+  - PUT for updates (returns 200 OK)
+  - DELETE for removal (returns 204 No Content)
+- **Status Codes**: 404 for not found, 400 for bad request, 201 for created
+
+#### 14. **Request/Response DTOs**
+- **Decision**: Use separate DTO classes for requests
+- **Rationale**: Decouples API contract from internal entity model, allows validation
+- **OrderRequest/OrderItemRequest**: Input DTOs for order operations
+- **Response**: Direct entity serialization (could be wrapped in Response DTO for consistency)
+
+#### 15. **Standardized Error Handling**
+- **Decision**: Throw RuntimeException/IllegalArgumentException for business errors
+- **Approach**: Controller catches and translates to HTTP status codes
+- **Rationale**: Simple, could be enhanced with @ExceptionHandler annotations
+
+### Development & Operations
+
+#### 16. **Spring Boot 3.2.0 with Java 17**
+- **Decision**: Latest stable Spring Boot 3.x with Java 17 LTS
+- **Rationale**: Latest features, long-term support, modern Java capabilities (records, sealed classes)
+- **Dependency Management**: Spring Cloud and Spring Data versions aligned
+
+#### 17. **Maven Multi-Module Build**
+- **Decision**: Parent POM with modules for each service
+- **Rationale**: Shared dependency management, single build command, consistent versions
+- **Structure**: `order-management` parent, `product-service`, `order-service` modules
+
+#### 18. **Logging Configuration**
+- **Framework**: SLF4J with Logback
+- **Approach**: Service methods log key operations (retrieve, create, update, delete)
+- **Pattern**: "[timestamp] - [message]" for simple debugging
+- **Enhancement**: Could add structured logging (JSON) for production
+
+#### 19. **SpringDoc OpenAPI Integration**
+- **Decision**: SpringDoc OpenAPI (Swagger) for API documentation
+- **URL**: `/api/v1/swagger-ui.html` for interactive docs
+- **Benefit**: Auto-generated API docs, built-in testing, client generation
+- **Note**: Requires no authentication to view (intentional for API exploration)
+
+### Technical Debt & Future Improvements
+
+1. **Integration Tests**: Implement with TestContainers for both services running together
+2. **Error Handling**: Create custom exception hierarchy with @ExceptionHandler for consistent error responses
+3. **Validation**: Add Hibernate Validator annotations (@Valid) for request validation
+4. **Async Processing**: Consider async/messaging for order processing
+5. **Transactions**: Add @Transactional annotations for consistency (currently implicit with Spring Data)
+6. **Caching**: Add caching for product lookups (Redis or Caffeine)
+7. **Monitoring**: Add metrics (Micrometer), distributed tracing (Zipkin)
+8. **Database**: Replace H2 with PostgreSQL for production
+9. **Authentication**: Upgrade to OAuth2/JWT for production security
+10. **API Versioning**: Plan for v2 APIs with proper deprecation strategy
