@@ -21,7 +21,7 @@ import java.util.Optional;
  * @version 1.0
  */
 @RestController
-@RequestMapping("/api/v1/products")
+@RequestMapping("/products")
 @RequiredArgsConstructor
 @Tag(name = "Products", description = "Product management endpoints")
 public class ProductController {
